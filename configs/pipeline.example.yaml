@@ -1,0 +1,26 @@
+dataset:
+  hf_dataset_id: EmbodiedCity/UrbanVideo-Bench
+  hf_split: train
+  local_root: data/raw/urbanvideo_bench
+  videos_dirname: videos
+
+preprocess:
+  output_root: data/processed/urbanvideo_bench
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  seed: 42
+  skip_missing_videos: false
+  prompt_suffix: "Reply with only one option letter (A/B/C/D), no explanation."
+
+training:
+  model_name_or_path: Qwen/Qwen2.5-VL-7B-Instruct
+  qwenvl_repo_dir: third_party/Qwen2.5-VL
+  train_dataset_alias: urbanvideo_train
+  val_dataset_alias: urbanvideo_val
+
+evaluation:
+  gate:
+    min_overall_accuracy: 0.55
+    min_worst_category_accuracy: 0.35
+    min_samples_per_category: 20
