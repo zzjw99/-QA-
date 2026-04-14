@@ -20,6 +20,7 @@ import pandas as pd
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
+DEFAULT_OPTION_LETTERS = ["A", "B", "C", "D"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--prompt-suffix",
-        default="Reply with only one option letter (A/B/C/D), no explanation.",
+        default="Reply with only one option letter from the provided choices ({options}), no explanation.",
         help="Suffix added to each question prompt / 每条问题后追加的提示语",
     )
     parser.add_argument(
@@ -112,24 +113,55 @@ def find_parquet_files(raw_root: Path, explicit_path: str | None) -> list[Path]:
     return mcq if mcq else candidates
 
 
-def normalize_letter(text: Any) -> str | None:
+def normalize_letter(text: Any, allowed_letters: list[str] | None = None) -> str | None:
     if text is None:
         return None
     value = str(text).strip().upper()
     if not value:
         return None
 
+    allowed = {letter.upper() for letter in allowed_letters} if allowed_letters else None
+
     patterns = [
-        r"\(([A-D])\)",
-        r"\b([A-D])\b",
-        r"OPTION\s*([A-D])",
-        r"ANSWER\s*[:：]?\s*([A-D])",
+        r"\(([A-Z])\)",
+        r"\b([A-Z])\b",
+        r"OPTION\s*([A-Z])",
+        r"ANSWER\s*[:：]?\s*([A-Z])",
     ]
     for pattern in patterns:
         match = re.search(pattern, value)
         if match:
-            return match.group(1)
+            candidate = match.group(1).upper()
+            if allowed and candidate not in allowed:
+                continue
+            return candidate
     return None
+
+
+def extract_option_letters(question_text: str) -> list[str]:
+    text = str(question_text)
+    marker = re.search(r"(CHOICE|CHOOSE)\s*[:：]", text, flags=re.IGNORECASE)
+    segment = text[marker.end() :] if marker else text
+
+    # 首选“行首字母 + 点号”模式，避免误抓句子中的大写字母
+    letters = re.findall(r"(?:^|\n)\s*([A-Z])\.\s", segment, flags=re.IGNORECASE)
+    if not letters:
+        letters = re.findall(r"\b([A-Z])\.\s", segment, flags=re.IGNORECASE)
+
+    ordered: list[str] = []
+    for letter in letters:
+        value = letter.upper()
+        if value not in ordered:
+            ordered.append(value)
+
+    return ordered if ordered else DEFAULT_OPTION_LETTERS.copy()
+
+
+def build_instruction(prompt_suffix: str, allowed_letters: list[str]) -> str:
+    options = "/".join(allowed_letters)
+    if "{options}" in prompt_suffix:
+        return prompt_suffix.format(options=options)
+    return f"{prompt_suffix} Valid options: {options}."
 
 
 def build_video_index(videos_root: Path) -> dict[str, Path]:
@@ -228,6 +260,7 @@ def build_ground_truth(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "answer": row["raw_answer"],
                 "answer_letter": row.get("answer_letter"),
                 "question_category": row.get("question_category"),
+                "allowed_letters": row.get("allowed_letters"),
             }
         )
     return gt
@@ -266,10 +299,12 @@ def main() -> None:
             raise FileNotFoundError(f"Cannot resolve video for video_id={video_id}")
 
         question_text = str(row[question_col]).strip()
+        allowed_letters = extract_option_letters(question_text)
         raw_answer = str(row[answer_col]).strip()
-        answer_letter = normalize_letter(raw_answer)
+        answer_letter = normalize_letter(raw_answer, allowed_letters=allowed_letters) or normalize_letter(raw_answer)
         assistant_value = f"Answer: ({answer_letter})" if answer_letter else raw_answer
-        prompt = f"{question_text}\n\nInstruction: {args.prompt_suffix}".strip()
+        instruction = build_instruction(args.prompt_suffix, allowed_letters)
+        prompt = f"{question_text}\n\nInstruction: {instruction}".strip()
 
         sample_id = str(row[qid_col]) if qid_col else str(idx)
         category = str(row[category_col]) if category_col else "unknown"
@@ -283,6 +318,7 @@ def main() -> None:
                 "question_category": category,
                 "raw_answer": raw_answer,
                 "answer_letter": answer_letter,
+                "allowed_letters": allowed_letters,
                 "video": rel_video_path,
                 "conversations": [
                     {

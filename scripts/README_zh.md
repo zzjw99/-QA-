@@ -19,6 +19,21 @@ python scripts/download_urbanvideo_bench.py \
 1. 数据文件（parquet/videos）。
 2. `download_manifest.json`（下载清单）。
 
+如果你只想先做本地冒烟，可用采样模式限制视频数量（会自动下载 `MCQ.parquet` + 采样视频）：
+
+```bash
+python scripts/download_urbanvideo_bench.py \
+  --dataset-id EmbodiedCity/UrbanVideo-Bench \
+  --local-dir data/raw/urbanvideo_bench \
+  --max-videos 150 \
+  --sample-seed 42
+```
+
+采样模式额外输出：
+
+1. `sampled_videos_manifest.json`（采样视频列表与缺失情况）。
+2. `download_manifest.json` 中 `sample_mode` 字段（采样统计）。
+
 ## 2) prepare_urbanvideo_for_qwenvl.py
 
 作用：把 parquet + 视频转成 QwenVL 的 JSONL，并按 `video_id` 切分 train/val/test。

@@ -49,18 +49,49 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def normalize_letter(value: Any) -> str | None:
+def normalize_letter(value: Any, allowed_letters: list[str] | None = None) -> str | None:
     if value is None:
         return None
     text = str(value).strip().upper()
     if not text:
         return None
 
-    patterns = [r"\(([A-D])\)", r"\b([A-D])\b", r"OPTION\s*([A-D])", r"ANSWER\s*[:：]?\s*([A-D])"]
+    allowed = {letter.upper() for letter in allowed_letters} if allowed_letters else None
+
+    patterns = [r"\(([A-Z])\)", r"\b([A-Z])\b", r"OPTION\s*([A-Z])", r"ANSWER\s*[:：]?\s*([A-Z])"]
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
-            return match.group(1)
+            candidate = match.group(1).upper()
+            if allowed and candidate not in allowed:
+                continue
+            return candidate
+    return None
+
+
+def parse_allowed_letters(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        letters = [str(item).strip().upper() for item in value if str(item).strip()]
+        return letters
+
+    text = str(value).strip().upper()
+    if not text:
+        return []
+    letters = re.findall(r"[A-Z]", text)
+    ordered: list[str] = []
+    for letter in letters:
+        if letter not in ordered:
+            ordered.append(letter)
+    return ordered
+
+
+def detect_allowed_letters(gt_row: dict[str, Any], pred_row: dict[str, Any] | None) -> list[str] | None:
+    for row in (gt_row, pred_row or {}):
+        letters = parse_allowed_letters(row.get("allowed_letters"))
+        if letters:
+            return letters
     return None
 
 
@@ -116,9 +147,14 @@ def evaluate(
             continue
 
         scored += 1
-        gt_letter = normalize_letter(gt.get("answer_letter")) or normalize_letter(gt.get("answer"))
+        allowed_letters = detect_allowed_letters(gt, pred)
+        gt_letter = normalize_letter(gt.get("answer_letter"), allowed_letters=allowed_letters) or normalize_letter(
+            gt.get("answer"), allowed_letters=allowed_letters
+        )
         pred_text = detect_prediction(pred)
-        pred_letter = normalize_letter(pred.get("prediction_letter")) or normalize_letter(pred_text)
+        pred_letter = normalize_letter(pred.get("prediction_letter"), allowed_letters=allowed_letters) or normalize_letter(
+            pred_text, allowed_letters=allowed_letters
+        )
 
         # 优先比较选项字母；若无法解析则退化为文本精确匹配
         if gt_letter and pred_letter:
