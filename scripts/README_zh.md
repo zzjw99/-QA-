@@ -2,6 +2,8 @@
 
 这个文档是给你“直接看脚本就能跑”的速查版，重点看每个脚本的输入、输出、常见命令。
 
+云端推荐：优先使用 QwenVL 3.5（7B Instruct），备选 QwenVL 3.0（7B Instruct）。
+
 ## 1) download_urbanvideo_bench.py
 
 作用：从 Hugging Face 下载 UrbanVideo-Bench 到本地。
@@ -55,13 +57,19 @@ python scripts/prepare_urbanvideo_for_qwenvl.py \
 
 ## 3) setup_qwenvl_repo.ps1
 
-作用：拉取或更新 Qwen2.5-VL 官方仓库。
+作用：拉取或更新 QwenVL 官方仓库（推荐 3.0/3.5）。
 
 常用命令：
 
 ```powershell
-powershell ./scripts/setup_qwenvl_repo.ps1
-powershell ./scripts/setup_qwenvl_repo.ps1 -Pull
+powershell ./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3.5-VL -RepoUrl https://github.com/QwenLM/Qwen3.5-VL.git
+powershell ./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3.5-VL -RepoUrl https://github.com/QwenLM/Qwen3.5-VL.git -Pull
+```
+
+备选（3.0）：
+
+```powershell
+powershell ./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3-VL -RepoUrl https://github.com/QwenLM/Qwen3-VL.git
 ```
 
 ## 4) register_dataset_in_qwenvl.py
@@ -72,7 +80,7 @@ powershell ./scripts/setup_qwenvl_repo.ps1 -Pull
 
 ```bash
 python scripts/register_dataset_in_qwenvl.py \
-  --qwenvl-data-init third_party/Qwen2.5-VL/qwen-vl-finetune/qwenvl/data/__init__.py \
+  --qwenvl-data-init third_party/Qwen3.5-VL/qwen-vl-finetune/qwenvl/data/__init__.py \
   --data-path data/raw/urbanvideo_bench \
   --dataset urbanvideo_train=data/processed/urbanvideo_bench/train.jsonl \
   --dataset urbanvideo_val=data/processed/urbanvideo_bench/val.jsonl
@@ -91,13 +99,15 @@ bash scripts/train_qwenvl_lora.sh
 带覆盖参数：
 
 ```bash
-MODEL_NAME_OR_PATH=Qwen/Qwen2.5-VL-7B-Instruct \
+MODEL_NAME_OR_PATH=Qwen/Qwen3.5-VL-7B-Instruct \
 DATASET_USE=urbanvideo_train%100 \
 NPROC_PER_NODE=2 \
 bash scripts/train_qwenvl_lora.sh
 ```
 
-输出：`outputs/checkpoints/qwen2_5_vl_7b_lora`。
+备选：`MODEL_NAME_OR_PATH=Qwen/Qwen3-VL-7B-Instruct`。
+
+输出：`outputs/checkpoints/qwen_vl_7b_lora`（建议按 3.0/3.5 区分命名）。
 
 ## 6) infer_qwen2_5_vl_mcq.py
 

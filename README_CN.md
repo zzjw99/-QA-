@@ -1,4 +1,4 @@
-# UrbanVideo-Bench 视频QA项目中文说明（Qwen2.5-VL）
+# UrbanVideo-Bench 视频QA项目中文说明（QwenVL 3.0/3.5）
 
 本文档用于说明三件事：
 
@@ -13,7 +13,7 @@
 本项目面向赛题的视频问答（VideoQA）子任务，核心目标是：
 
 1. 使用 Hugging Face 上的 UrbanVideo-Bench 数据。
-2. 以 Qwen2.5-VL 模型为基座做 LoRA 微调。
+2. 以上云 QwenVL 3.0 或 3.5（优先 7B Instruct）为基座做 LoRA 微调。
 3. 用 MCQ 准确率评估模型能力。
 4. 基于阈值做 go/no-go（是否达标）判定。
 
@@ -53,6 +53,12 @@ pip install -r requirements.txt
 2. 安装 PyTorch、Transformers（新版本）、qwen-vl-utils[decord]、peft、accelerate。
 3. 如果显存紧张，先试 3B 或减小 batch / frame 数。
 
+云端模型建议：
+
+1. 优先：Qwen/Qwen3.5-VL-7B-Instruct（精度优先）。
+2. 备选：Qwen/Qwen3-VL-7B-Instruct（兼容性优先）。
+3. 本地冒烟仍可用 2.5/3B/int4，正式指标以云端 3.0/3.5 结果为准。
+
 ### 步骤 1：下载 UrbanVideo-Bench
 
 ```bash
@@ -90,22 +96,30 @@ python scripts/prepare_urbanvideo_for_qwenvl.py \
 Windows PowerShell：
 
 ```powershell
-./scripts/setup_qwenvl_repo.ps1
+./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3.5-VL -RepoUrl https://github.com/QwenLM/Qwen3.5-VL.git
 ```
 
-作用：克隆或更新 third_party/Qwen2.5-VL。
+备选（3.0）：
+
+```powershell
+./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3-VL -RepoUrl https://github.com/QwenLM/Qwen3-VL.git
+```
+
+作用：克隆或更新第三方 QwenVL 仓库（推荐 3.0/3.5）。
 
 ### 步骤 4：把自定义数据集注册到 Qwen 框架
 
 ```bash
 python scripts/register_dataset_in_qwenvl.py \
-  --qwenvl-data-init third_party/Qwen2.5-VL/qwen-vl-finetune/qwenvl/data/__init__.py \
+   --qwenvl-data-init third_party/<QWENVL_REPO>/qwen-vl-finetune/qwenvl/data/__init__.py \
   --data-path data/raw/urbanvideo_bench \
   --dataset urbanvideo_train=data/processed/urbanvideo_bench/train.jsonl \
   --dataset urbanvideo_val=data/processed/urbanvideo_bench/val.jsonl
 ```
 
 作用：把训练/验证别名写入 data_dict，后续训练参数可直接用别名。
+
+说明：`<QWENVL_REPO>` 可选 `Qwen3-VL` 或 `Qwen3.5-VL`。
 
 ### 步骤 5：云端 LoRA 训练
 
@@ -116,13 +130,15 @@ bash scripts/train_qwenvl_lora.sh
 可覆盖参数示例：
 
 ```bash
-MODEL_NAME_OR_PATH=Qwen/Qwen2.5-VL-7B-Instruct \
+MODEL_NAME_OR_PATH=Qwen/Qwen3.5-VL-7B-Instruct \
 DATASET_USE=urbanvideo_train%100 \
 NPROC_PER_NODE=2 \
 bash scripts/train_qwenvl_lora.sh
 ```
 
-输出：outputs/checkpoints/qwen2_5_vl_7b_lora。
+可替换为：`MODEL_NAME_OR_PATH=Qwen/Qwen3-VL-7B-Instruct`。
+
+输出：outputs/checkpoints/qwen_vl_7b_lora（建议自定义命名，区分 3.0/3.5）。
 
 ### 步骤 6：测试集推理
 
@@ -200,7 +216,7 @@ python scripts/capability_gate.py \
    作用：自动把你的 JSONL 数据注册进 Qwen 训练框架。
 
 4. scripts/setup_qwenvl_repo.ps1
-   作用：克隆或更新 Qwen2.5-VL 官方仓库。
+   作用：克隆或更新 QwenVL 官方仓库（推荐 3.0/3.5）。
 
 5. scripts/train_qwenvl_lora.sh
    作用：云端 LoRA 训练启动脚本。
@@ -249,8 +265,8 @@ python scripts/capability_gate.py \
 ## 7. 常见问题与排查
 
 1. 报错 KeyError: qwen2_5_vl
-   原因：transformers 版本太旧。
-   处理：升级到支持 Qwen2.5-VL 的新版本。
+   原因：transformers 版本太旧，或当前版本不支持所选 QwenVL。
+   处理：升级到支持 QwenVL 3.0/3.5 的新版本。
 
 2. 推理报视频找不到
    原因：data-root 与 JSONL 里的相对路径拼接不一致。
