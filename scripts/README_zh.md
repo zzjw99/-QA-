@@ -72,7 +72,48 @@ powershell ./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3.5-VL -Repo
 powershell ./scripts/setup_qwenvl_repo.ps1 -RepoDir third_party/Qwen3-VL -RepoUrl https://github.com/QwenLM/Qwen3-VL.git
 ```
 
-## 4) register_dataset_in_qwenvl.py
+## 4) register_dataset_in_ms_swift.py（推荐）
+
+作用：把你处理后的 QwenVL JSONL 转成 ms-swift 格式，并生成 `dataset_info.json`。
+
+常用命令：
+
+```bash
+python scripts/register_dataset_in_ms_swift.py \
+  --data-root data/raw/urbanvideo_bench \
+  --train-jsonl data/processed/urbanvideo_bench/train.jsonl \
+  --val-jsonl data/processed/urbanvideo_bench/val.jsonl \
+  --test-jsonl data/processed/urbanvideo_bench/test.jsonl \
+  --output-dir data/processed/urbanvideo_bench/ms_swift \
+  --dataset-info-path outputs/ms_swift/dataset_info.json \
+  --dataset-prefix urbanvideo
+```
+
+默认数据集别名：`urbanvideo_train` / `urbanvideo_val` / `urbanvideo_test`。
+
+## 5) train_ms_swift_lora.sh（推荐）
+
+作用：使用 ms-swift 启动多模态 LoRA 训练，不需要修改第三方源码。
+
+常用命令：
+
+```bash
+pip install -U ms-swift
+bash scripts/train_ms_swift_lora.sh
+```
+
+带覆盖参数：
+
+```bash
+MODEL_NAME_OR_PATH=Qwen/Qwen3.5-VL-7B-Instruct \
+DATASET_INFO_PATH=outputs/ms_swift/dataset_info.json \
+TRAIN_DATASET=urbanvideo_train \
+VAL_DATASET=urbanvideo_val \
+DEEPSPEED=zero2 \
+bash scripts/train_ms_swift_lora.sh
+```
+
+## 6) register_dataset_in_qwenvl.py（兼容旧链路）
 
 作用：把你处理后的 JSONL 注册成 Qwen 框架可识别的数据集别名。
 
@@ -86,7 +127,7 @@ python scripts/register_dataset_in_qwenvl.py \
   --dataset urbanvideo_val=data/processed/urbanvideo_bench/val.jsonl
 ```
 
-## 5) train_qwenvl_lora.sh
+## 7) train_qwenvl_lora.sh（兼容旧链路）
 
 作用：云端启动 LoRA 训练（默认低预算参数）。
 
@@ -109,7 +150,7 @@ bash scripts/train_qwenvl_lora.sh
 
 输出：`outputs/checkpoints/qwen_vl_7b_lora`（建议按 3.0/3.5 区分命名）。
 
-## 6) infer_qwen2_5_vl_mcq.py
+## 8) infer_qwen2_5_vl_mcq.py
 
 作用：在某个 split（通常 test）上跑推理，导出预测。
 
@@ -123,7 +164,28 @@ python scripts/infer_qwen2_5_vl_mcq.py \
   --output-jsonl outputs/predictions/test_predictions.jsonl
 ```
 
-## 7) eval_mcq_accuracy.py
+高性能命令（Linux + GPU，建议比赛冲榜使用）：
+
+```bash
+pip install vllm outlines qwen-vl-utils[decord]
+
+python scripts/infer_qwen2_5_vl_mcq.py \
+  --backend vllm \
+  --model-name-or-path <模型路径> \
+  --input-jsonl data/processed/urbanvideo_bench/test.jsonl \
+  --data-root data/raw/urbanvideo_bench \
+  --output-jsonl outputs/predictions/test_predictions_vllm.jsonl \
+  --batch-size 16 \
+  --constrained-decoding
+```
+
+参数提示：
+
+1. `--backend`：`transformers`（默认，兼容优先）或 `vllm`（吞吐优先）。
+2. `--batch-size`：按显存调节，通常 8-32 有较好吞吐。
+3. `--constrained-decoding`：将答案限制为题目允许字母，避免输出解释性长文本。
+
+## 9) eval_mcq_accuracy.py
 
 作用：计算 MCQ 准确率（总分 + 分类别）。
 
@@ -136,7 +198,7 @@ python scripts/eval_mcq_accuracy.py \
   --report-path outputs/reports/test_eval_report.json
 ```
 
-## 8) capability_gate.py
+## 10) capability_gate.py
 
 作用：根据阈值自动判定模型能力是否达标（go/no-go）。
 
@@ -160,9 +222,9 @@ python scripts/capability_gate.py \
 
 1. 下载数据。
 2. 预处理并切分。
-3. 拉取 Qwen 仓库。
-4. 注册数据集别名。
-5. 云端训练。
+3. 推荐路径：执行 `register_dataset_in_ms_swift.py`。
+4. 推荐路径：执行 `train_ms_swift_lora.sh`。
+5. 兼容旧路径：拉取 Qwen 仓库 + 注册数据集别名 + 执行 `train_qwenvl_lora.sh`。
 6. 推理。
 7. 评测。
 8. 门禁判定。
