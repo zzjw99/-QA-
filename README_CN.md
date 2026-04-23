@@ -7,6 +7,7 @@
 3. 推荐执行顺序与落地步骤。
 
 脚本速查入口：scripts/README_zh.md（重点看每个脚本的输入、输出和命令示例）
+云端手动命令手册（Qwen3.5-9B-GPTQ LoRA 冒烟）：CLOUD_LORA_SMOKE_QWEN3_5_9B_GPTQ_RUNBOOK.md
 
 ## 1. 项目目标
 
@@ -64,12 +65,20 @@ pip install -r requirements.txt
 ```bash
 python scripts/download_urbanvideo_bench.py \
   --dataset-id EmbodiedCity/UrbanVideo-Bench \
-  --local-dir data/raw/urbanvideo_bench
+   --local-dir data/raw/urbanvideo_bench \
+   --hf-endpoint https://hf-mirror.com \
+   --sample-records 200
 ```
 
 输入：Hugging Face 数据集。
 输出：data/raw/urbanvideo_bench + download_manifest.json。
 通过标准：manifest 里有 parquet 和 videos 文件。
+
+说明：
+
+1. 默认已使用 `hf-mirror.com` 作为下载端点。
+2. 默认会按 `question_category` 分层随机采样 200 条记录，再下载对应视频，适合云端 LoRA 冒烟测试。
+3. 如需全量下载，可增加参数 `--full-download`。
 
 ### 步骤 2：转换为 QwenVL 训练格式 + 切分数据
 

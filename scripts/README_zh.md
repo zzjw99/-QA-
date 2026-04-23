@@ -6,14 +6,16 @@
 
 ## 1) download_urbanvideo_bench.py
 
-作用：从 Hugging Face 下载 UrbanVideo-Bench 到本地。
+作用：从 Hugging Face（默认使用 hf-mirror）下载 UrbanVideo-Bench 到本地。
 
 常用命令：
 
 ```bash
 python scripts/download_urbanvideo_bench.py \
   --dataset-id EmbodiedCity/UrbanVideo-Bench \
-  --local-dir data/raw/urbanvideo_bench
+  --local-dir data/raw/urbanvideo_bench \
+  --hf-endpoint https://hf-mirror.com \
+  --sample-records 200
 ```
 
 输出：
@@ -21,14 +23,26 @@ python scripts/download_urbanvideo_bench.py \
 1. 数据文件（parquet/videos）。
 2. `download_manifest.json`（下载清单）。
 
-如果你只想先做本地冒烟，可用采样模式限制视频数量（会自动下载 `MCQ.parquet` + 采样视频）：
+脚本默认会按 `question_category` 分层随机采样 200 条记录，再下载对应视频（用于快速验证 LoRA 链路）。
+
+如果你只想按视频数做额外限制，可叠加：
 
 ```bash
 python scripts/download_urbanvideo_bench.py \
   --dataset-id EmbodiedCity/UrbanVideo-Bench \
   --local-dir data/raw/urbanvideo_bench \
+  --sample-records 200 \
   --max-videos 150 \
   --sample-seed 42
+```
+
+如果要全量下载（不采样）：
+
+```bash
+python scripts/download_urbanvideo_bench.py \
+  --dataset-id EmbodiedCity/UrbanVideo-Bench \
+  --local-dir data/raw/urbanvideo_bench \
+  --full-download
 ```
 
 采样模式额外输出：

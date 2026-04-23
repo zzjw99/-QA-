@@ -1,8 +1,11 @@
 dataset:
   hf_dataset_id: EmbodiedCity/UrbanVideo-Bench
   hf_split: train
+  hf_endpoint: https://hf-mirror.com
   local_root: data/raw/urbanvideo_bench
   videos_dirname: videos
+  sample_records: 200
+  sample_strategy: stratified
 
 preprocess:
   output_root: data/processed/urbanvideo_bench
