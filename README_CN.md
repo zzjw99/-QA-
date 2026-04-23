@@ -7,6 +7,7 @@
 3. 推荐执行顺序与落地步骤。
 
 脚本速查入口：scripts/README_zh.md（重点看每个脚本的输入、输出和命令示例）
+云端手动命令手册（Qwen3.5-9B-GPTQ LoRA 冒烟）：CLOUD_LORA_SMOKE_QWEN3_5_9B_GPTQ_RUNBOOK.md
 
 ## 1. 项目目标
 
@@ -64,12 +65,20 @@ pip install -r requirements.txt
 ```bash
 python scripts/download_urbanvideo_bench.py \
   --dataset-id EmbodiedCity/UrbanVideo-Bench \
-  --local-dir data/raw/urbanvideo_bench
+   --local-dir data/raw/urbanvideo_bench \
+   --hf-endpoint https://hf-mirror.com \
+   --sample-records 200
 ```
 
 输入：Hugging Face 数据集。
 输出：data/raw/urbanvideo_bench + download_manifest.json。
 通过标准：manifest 里有 parquet 和 videos 文件。
+
+说明：
+
+1. 默认已使用 `hf-mirror.com` 作为下载端点。
+2. 默认会按 `question_category` 分层随机采样 200 条记录，再下载对应视频，适合云端 LoRA 冒烟测试。
+3. 如需全量下载，可增加参数 `--full-download`。
 
 ### 步骤 2：转换为 QwenVL 训练格式 + 切分数据
 
@@ -107,7 +116,49 @@ Windows PowerShell：
 
 作用：克隆或更新第三方 QwenVL 仓库（推荐 3.0/3.5）。
 
-### 步骤 4：把自定义数据集注册到 Qwen 框架
+### 步骤 4（推荐）：生成 ms-swift 数据集映射
+
+```bash
+python scripts/register_dataset_in_ms_swift.py \
+   --data-root data/raw/urbanvideo_bench \
+   --train-jsonl data/processed/urbanvideo_bench/train.jsonl \
+   --val-jsonl data/processed/urbanvideo_bench/val.jsonl \
+   --test-jsonl data/processed/urbanvideo_bench/test.jsonl \
+   --output-dir data/processed/urbanvideo_bench/ms_swift \
+   --dataset-info-path outputs/ms_swift/dataset_info.json \
+   --dataset-prefix urbanvideo
+```
+
+作用：把原有 QwenVL JSONL 转为 ms-swift 可直接训练的格式，并生成 `dataset_info.json`。
+
+默认会注册 3 个别名：
+
+1. `urbanvideo_train`
+2. `urbanvideo_val`
+3. `urbanvideo_test`
+
+### 步骤 5（推荐）：云端 LoRA 训练（ms-swift）
+
+```bash
+pip install -U ms-swift
+
+bash scripts/train_ms_swift_lora.sh
+```
+
+可覆盖参数示例：
+
+```bash
+MODEL_NAME_OR_PATH=Qwen/Qwen3.5-VL-7B-Instruct \
+DATASET_INFO_PATH=outputs/ms_swift/dataset_info.json \
+TRAIN_DATASET=urbanvideo_train \
+VAL_DATASET=urbanvideo_val \
+DEEPSPEED=zero2 \
+bash scripts/train_ms_swift_lora.sh
+```
+
+输出：`outputs/checkpoints/ms_swift_qwen2_5_vl_7b_lora`（建议按模型版本区分命名）。
+
+### 步骤 4B（兼容旧链路）：把自定义数据集注册到 Qwen 框架
 
 ```bash
 python scripts/register_dataset_in_qwenvl.py \
@@ -121,7 +172,7 @@ python scripts/register_dataset_in_qwenvl.py \
 
 说明：`<QWENVL_REPO>` 可选 `Qwen3-VL` 或 `Qwen3.5-VL`。
 
-### 步骤 5：云端 LoRA 训练
+### 步骤 5B（兼容旧链路）：云端 LoRA 训练（Qwen 官方）
 
 ```bash
 bash scripts/train_qwenvl_lora.sh
@@ -149,6 +200,27 @@ python scripts/infer_qwen2_5_vl_mcq.py \
   --data-root data/raw/urbanvideo_bench \
   --output-jsonl outputs/predictions/test_predictions.jsonl
 ```
+
+高吞吐（推荐比赛冲榜时使用，Linux + GPU）：
+
+```bash
+pip install vllm outlines qwen-vl-utils[decord]
+
+python scripts/infer_qwen2_5_vl_mcq.py \
+   --backend vllm \
+   --model-name-or-path <你的模型或检查点路径> \
+   --input-jsonl data/processed/urbanvideo_bench/test.jsonl \
+   --data-root data/raw/urbanvideo_bench \
+   --output-jsonl outputs/predictions/test_predictions_vllm.jsonl \
+   --batch-size 16 \
+   --constrained-decoding
+```
+
+说明：
+
+1. `--backend transformers` 为默认模式，兼容性更高。
+2. `--backend vllm` 使用连续批处理，通常能显著提升吞吐。
+3. `--constrained-decoding` 会把输出限制在题目允许选项（如 A/B/C/D/E）内，减少解析失败。
 
 输出：test_predictions.jsonl（包含 prediction 与 prediction_letter）。
 
@@ -215,19 +287,25 @@ python scripts/capability_gate.py \
 3. scripts/register_dataset_in_qwenvl.py
    作用：自动把你的 JSONL 数据注册进 Qwen 训练框架。
 
-4. scripts/setup_qwenvl_repo.ps1
+4. scripts/register_dataset_in_ms_swift.py
+   作用：把 QwenVL JSONL 转成 ms-swift 训练格式并生成 dataset_info.json。
+
+5. scripts/setup_qwenvl_repo.ps1
    作用：克隆或更新 QwenVL 官方仓库（推荐 3.0/3.5）。
 
-5. scripts/train_qwenvl_lora.sh
+6. scripts/train_qwenvl_lora.sh
    作用：云端 LoRA 训练启动脚本。
 
-6. scripts/infer_qwen2_5_vl_mcq.py
+7. scripts/train_ms_swift_lora.sh
+   作用：基于 ms-swift 的 LoRA 训练启动脚本（推荐）。
+
+8. scripts/infer_qwen2_5_vl_mcq.py
    作用：对指定 split 执行推理并导出预测。
 
-7. scripts/eval_mcq_accuracy.py
+9. scripts/eval_mcq_accuracy.py
    作用：计算 overall 与分类型准确率。
 
-8. scripts/capability_gate.py
+10. scripts/capability_gate.py
    作用：按阈值给出 pass/fail 结论。
 
 ## 6. 建议执行顺序
@@ -242,7 +320,7 @@ python scripts/capability_gate.py \
 
 ### B. 云端正式训练（建议 1-2 天内完成首轮）
 
-1. 用 7B LoRA 跑首轮，保存 checkpoint。
+1. 优先走 ms-swift 链路（步骤 4-5）跑首轮 7B LoRA，保存 checkpoint。
 2. 用同一套 test 流程生成首版准确率报告。
 3. 记录训练配置和结果，建立对比基线。
 
@@ -276,7 +354,7 @@ python scripts/capability_gate.py \
    处理：降低 batch、减少 frame、启用更小模型（如 3B）做快速验证。
 
 4. 评估分数异常偏低
-   处理：先检查 prediction_letter 提取是否正常，再看是否有 missing_prediction_count 偏高。
+   处理：先检查 prediction_letter 提取是否正常，再看是否有 missing_prediction_count 偏高；可优先使用 `--constrained-decoding` 以减少无效输出。
 
 ## 8. 现在最推荐你执行的三步
 

@@ -1,8 +1,11 @@
 dataset:
   hf_dataset_id: EmbodiedCity/UrbanVideo-Bench
   hf_split: train
+  hf_endpoint: https://hf-mirror.com
   local_root: data/raw/urbanvideo_bench
   videos_dirname: videos
+  sample_records: 200
+  sample_strategy: stratified
 
 preprocess:
   output_root: data/processed/urbanvideo_bench
@@ -14,10 +17,14 @@ preprocess:
   prompt_suffix: "Reply with only one option letter (A/B/C/D), no explanation."
 
 training:
+  framework: ms_swift
   model_name_or_path: Qwen/Qwen2.5-VL-7B-Instruct
   qwenvl_repo_dir: third_party/Qwen2.5-VL
   train_dataset_alias: urbanvideo_train
   val_dataset_alias: urbanvideo_val
+  ms_swift_dataset_info: outputs/ms_swift/dataset_info.json
+  ms_swift_train_alias: urbanvideo_train
+  ms_swift_val_alias: urbanvideo_val
 
 evaluation:
   gate:
