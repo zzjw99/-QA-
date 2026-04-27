@@ -15,6 +15,7 @@ OUTPUT_DIR=${OUTPUT_DIR:-outputs/checkpoints/ms_swift_qwen2_5_vl_7b_lora}
 
 TORCH_DTYPE=${TORCH_DTYPE:-bfloat16}
 NUM_TRAIN_EPOCHS=${NUM_TRAIN_EPOCHS:-3}
+MAX_STEPS=${MAX_STEPS:-}
 PER_DEVICE_TRAIN_BATCH_SIZE=${PER_DEVICE_TRAIN_BATCH_SIZE:-1}
 PER_DEVICE_EVAL_BATCH_SIZE=${PER_DEVICE_EVAL_BATCH_SIZE:-1}
 GRADIENT_ACCUMULATION_STEPS=${GRADIENT_ACCUMULATION_STEPS:-8}
@@ -37,16 +38,25 @@ SAVE_TOTAL_LIMIT=${SAVE_TOTAL_LIMIT:-3}
 
 DEEPSPEED=${DEEPSPEED:-}
 USE_HF=${USE_HF:-true}
+DRY_RUN=${DRY_RUN:-0}
 
 if ! command -v swift >/dev/null 2>&1; then
-  echo "[ERROR] 'swift' command not found. Install with: pip install -U ms-swift"
-  exit 1
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    echo "[WARN] 'swift' command not found. DRY_RUN=1, continuing to print the command."
+  else
+    echo "[ERROR] 'swift' command not found. Install with: pip install -U ms-swift"
+    exit 1
+  fi
 fi
 
 if [[ ! -f "${DATASET_INFO_PATH}" ]]; then
-  echo "[ERROR] dataset_info file not found: ${DATASET_INFO_PATH}"
-  echo "Run first: python scripts/register_dataset_in_ms_swift.py"
-  exit 1
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    echo "[WARN] dataset_info file not found: ${DATASET_INFO_PATH}. DRY_RUN=1, continuing to print the command."
+  else
+    echo "[ERROR] dataset_info file not found: ${DATASET_INFO_PATH}"
+    echo "Run first: python scripts/register_dataset_in_ms_swift.py"
+    exit 1
+  fi
 fi
 
 mkdir -p "${OUTPUT_DIR}"
@@ -79,6 +89,10 @@ cmd=(
   --use_hf "${USE_HF}"
 )
 
+if [[ -n "${MAX_STEPS}" ]]; then
+  cmd+=(--max_steps "${MAX_STEPS}")
+fi
+
 if [[ -n "${VAL_DATASET}" ]]; then
   cmd+=(--val_dataset "${VAL_DATASET}")
 fi
@@ -98,6 +112,11 @@ fi
 echo "[INFO] Running ms-swift SFT command:"
 printf ' %q' "${cmd[@]}"
 echo
+
+if [[ "${DRY_RUN}" == "1" ]]; then
+  echo "[INFO] DRY_RUN=1, command was printed but not executed."
+  exit 0
+fi
 
 "${cmd[@]}"
 

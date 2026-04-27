@@ -127,6 +127,52 @@ DEEPSPEED=zero2 \
 bash scripts/train_ms_swift_lora.sh
 ```
 
+## 5A) cloud_lora_smoke_test.sh（云端一键冒烟）
+
+作用：把云端 LoRA 冒烟流程自动串起来，覆盖环境检查、可选依赖安装、数据下载、预处理、ms-swift 数据集注册、短步数训练、日志归档和 checkpoint 校验。
+
+先只看命令是否符合预期：
+
+```bash
+bash scripts/cloud_lora_smoke_test.sh --dry-run
+```
+
+云端完整冒烟示例（默认使用 `wizardeur/Qwen3.5-9B-GPTQ-marlin`，跑 30 steps）：
+
+```bash
+bash scripts/cloud_lora_smoke_test.sh \
+  --install-deps \
+  --install-gptq-deps \
+  --sample-records 200 \
+  --max-steps 30
+```
+
+注意：`--install-deps` 不会自动安装 CUDA 版 PyTorch；请先按云服务器 CUDA 版本安装对应的 `torch/torchvision/torchaudio`。
+
+如果 GPTQ 后端不兼容，可切到非 GPTQ 基座：
+
+```bash
+bash scripts/cloud_lora_smoke_test.sh \
+  --model Qwen/Qwen3.5-VL-7B-Instruct \
+  --sample-records 200 \
+  --max-steps 30
+```
+
+常用跳过项：
+
+```bash
+bash scripts/cloud_lora_smoke_test.sh \
+  --skip-data-download \
+  --skip-prepare \
+  --max-steps 30
+```
+
+输出：
+
+1. 日志：`outputs/logs/cloud_lora_smoke_*.log`。
+2. 汇总：`outputs/reports/cloud_lora_smoke_summary_*.json`。
+3. 训练产物：默认 `outputs/checkpoints/ms_swift_smoke_qwen3_5_lora`。
+
 ## 6) register_dataset_in_qwenvl.py（兼容旧链路）
 
 作用：把你处理后的 JSONL 注册成 Qwen 框架可识别的数据集别名。
@@ -237,8 +283,9 @@ python scripts/capability_gate.py \
 1. 下载数据。
 2. 预处理并切分。
 3. 推荐路径：执行 `register_dataset_in_ms_swift.py`。
-4. 推荐路径：执行 `train_ms_swift_lora.sh`。
-5. 兼容旧路径：拉取 Qwen 仓库 + 注册数据集别名 + 执行 `train_qwenvl_lora.sh`。
-6. 推理。
-7. 评测。
-8. 门禁判定。
+4. 云端冒烟：可直接执行 `cloud_lora_smoke_test.sh` 串起数据准备、注册和短步数训练。
+5. 推荐路径：正式训练执行 `train_ms_swift_lora.sh`。
+6. 兼容旧路径：拉取 Qwen 仓库 + 注册数据集别名 + 执行 `train_qwenvl_lora.sh`。
+7. 推理。
+8. 评测。
+9. 门禁判定。

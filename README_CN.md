@@ -145,6 +145,22 @@ pip install -U ms-swift
 bash scripts/train_ms_swift_lora.sh
 ```
 
+如果要先做云端一键冒烟测试，推荐使用自动化脚本：
+
+```bash
+bash scripts/cloud_lora_smoke_test.sh --dry-run
+
+bash scripts/cloud_lora_smoke_test.sh \
+  --install-deps \
+  --install-gptq-deps \
+  --sample-records 200 \
+  --max-steps 30
+```
+
+该脚本会串起环境检查、数据下载/预处理、ms-swift 注册、短步数 LoRA 训练、日志归档和 checkpoint 校验。默认模型为 `wizardeur/Qwen3.5-9B-GPTQ-marlin`；如果 GPTQ 后端不兼容，可改用 `--model Qwen/Qwen3.5-VL-7B-Instruct`。
+
+注意：`--install-deps` 不会自动安装 CUDA 版 PyTorch；请先按云服务器 CUDA 版本安装对应的 `torch/torchvision/torchaudio`。
+
 可覆盖参数示例：
 
 ```bash
@@ -299,13 +315,16 @@ python scripts/capability_gate.py \
 7. scripts/train_ms_swift_lora.sh
    作用：基于 ms-swift 的 LoRA 训练启动脚本（推荐）。
 
-8. scripts/infer_qwen2_5_vl_mcq.py
+8. scripts/cloud_lora_smoke_test.sh
+   作用：云端 LoRA 冒烟测试脚本，自动完成前置检查、数据准备、短步数训练和产物校验。
+
+9. scripts/infer_qwen2_5_vl_mcq.py
    作用：对指定 split 执行推理并导出预测。
 
-9. scripts/eval_mcq_accuracy.py
+10. scripts/eval_mcq_accuracy.py
    作用：计算 overall 与分类型准确率。
 
-10. scripts/capability_gate.py
+11. scripts/capability_gate.py
    作用：按阈值给出 pass/fail 结论。
 
 ## 6. 建议执行顺序
